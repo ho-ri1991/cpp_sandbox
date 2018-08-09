@@ -10,8 +10,10 @@ namespace my
   private:
     using this_type = node_base<R(Args...), T>;
     using derived_type = T;
+  public:
+    using result_type = R;
   protected:
-    R** ans_ptr{};
+    result_type** ans_ptr{};
     ~node_base() = default;
   public:
     node_base() = default;
@@ -75,6 +77,7 @@ namespace my
     ~custom_node_base() = default;
   public:
     using custom_node_type = custom_node_base;
+    using node_invoke_type = R(Args...);
   public:
     custom_node_base() = default;
     custom_node_base(const custom_node_base&) = default;
@@ -96,9 +99,12 @@ namespace my
     }
   };
   template <typename N1, typename N2>
-  class multi_node: node_base<single_node_data(), multi_node<N1, N2>>
+  class multi_node: public node_base<single_node_data(), multi_node<N1, N2>>
   {
   private:
+    using base_type = node_base<single_node_data(), multi_node<N1, N2>>;
+    using result_type  = typename base_type::result_type;
+    result_type data;
     N1 n1;
     N2 n2;
   public:
@@ -111,29 +117,53 @@ namespace my
   public:
     const char* match(const char* begin)
     {
+      if (base_type::ans_ptr)
+        *base_type::ans_ptr = nullptr;
       auto res1 = n1.match(begin);
-      return res1 ? res1 : n2.match(begin);
+      if (res1)
+      {
+        if (base_type::ans_ptr)
+          *base_type::ans_ptr = &data;
+        return res1;
+      }
+      auto res2 = n2.match(begin);
+      if (res2)
+      {
+        if (base_type::ans_ptr)
+          *base_type::ans_ptr = &data;
+        return res2;
+      }
+      return nullptr;
     }
   };
   template <typename N1, typename N2>
-  class chain_node: node_base<single_node(), chain_node<N1, N2>>
+  class chain_node: public node_base<single_node_data(), chain_node<N1, N2>>
   {
   private:
+    using base_type = node_base<single_node_data(), chain_node<N1, N2>>;
+    using result_type  = typename base_type::result_type;
+    result_type data;
     N1 n1;
     N2 n2;
   public:
     chain_node(const N1& n1, const N2& n2): n1(n1), n2(n2) {}
     chain_node(const chain_node&) = default;
     chain_node(chain_node&&) = default;
-    chain_node& operator=(const chain_node&) = default;
-    chain_node& operator=(chain_node&&) = default;
+    chain_node& operator=(const chain_node&) = delete;
+    chain_node& operator=(chain_node&&) = delete;
     ~chain_node() = default;
   public:
     const char* match(const char* begin)
     {
+      if (base_type::ans_ptr)
+        *base_type::ans_ptr = nullptr;
       auto res1 = n1.match(begin);
       if (!res1) return nullptr;
-      return n2.match(res1);
+      auto res2 = n2.match(res1);
+      if (!res2) return nullptr;
+      if (base_type::ans_ptr)
+        *base_type::ans_ptr = &data;
+      return res2;
     }
   };
   // TODO write constraints for SFINAE
@@ -146,7 +176,7 @@ namespace my
   template <typename N1, typename N2>
   auto operator+(const N1& n1, const N2& n2)
   {
-    return chain_node(n1, n2);
+    return chain_node<N1, N2>(n1, n2);
   }
 }
 my::single_node operator"" _s(const char* str, std::size_t len) noexcept { return my::single_node(str); }
@@ -191,7 +221,6 @@ namespace my
     struct Clause0: custom_node_base<BLOCK2_data(), Clause0>
     {
       BLOCK1_DEF::BLOCK1_data* p1{};
-//      single_node_data* p1{};
       single_node_data* p2{};
       DEFINE_EXPRESSION(BLOCK1()[p1] | "bbb"_s[p2], Clause0);
       void as()
@@ -205,6 +234,29 @@ namespace my
     };
   };
   auto BLOCK2() { return BLOCK2_DEF::Clause0{}; }
+  struct BLOCK3_DEF
+  {
+    struct BLOCK3_data
+    {
+      int x;
+    };
+    struct Clause0: custom_node_base<BLOCK3_data(), Clause0>
+    {
+      BLOCK1_DEF::BLOCK1_data* p1{};
+      single_node_data* p2{};
+      single_node_data* p3{};
+      DEFINE_EXPRESSION((BLOCK1()[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
+      void as()
+      {
+        if (p1 && p2 && p3) {
+//          std::cout << p1->x << std::endl;
+          x = p1->x;
+        }
+        else x = -1;
+      }
+    };
+  };
+  auto BLOCK3() { return BLOCK3_DEF::Clause0{}; }
 }
 int main()
 {
@@ -256,6 +308,30 @@ int main()
     {
       p = nullptr;
       auto input = "bbb";
+      auto output = n.match(input);
+      std::cout << output << std::endl;
+      std::cout << "ans: " << p->x << std::endl;
+    }
+    {
+      p = nullptr;
+      auto input = "bbbc";
+      auto output = n.match(input);
+      std::cout << (output == nullptr) << std::endl;
+    }
+  }
+  {
+    std::cout << "===" << std::endl;
+    my::BLOCK3_DEF::BLOCK3_data* p = nullptr;
+    auto n = my::BLOCK3()[p];
+    {
+      auto input = "aaa bbb dd ccc";
+      auto output = n.match(input);
+      std::cout << output << std::endl;
+      std::cout << "ans: " << p->x << std::endl;
+    }
+    {
+      p = nullptr;
+      auto input = "ccc";
       auto output = n.match(input);
       std::cout << output << std::endl;
       std::cout << "ans: " << p->x << std::endl;
