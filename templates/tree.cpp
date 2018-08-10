@@ -1,6 +1,50 @@
 #include <iostream>
+#include <tuple>
+#include <variant>
+#include <cassert>
 namespace my
 {
+  template <typename T>
+  struct placeholer
+  {
+    std::variant<placeholer<T>*, T> data;
+    T get()
+    {
+      return std::visit([](auto&& var) {
+          using U = std::decay_t<decltype(var)>;
+          if constexpr (std::is_same_v<U, placeholer<T>*>)
+          {
+            assert(var);
+            return var->get();
+          }
+          else
+             return var;
+        }, data
+      );
+    }
+    void set(T d) { data = d; }
+    void set(placeholer<T>& p) { data = &p; }
+    placeholer() = default;
+    placeholer(T t): data(std::move(t)) {}
+    placeholer(placeholer<T>& p): data(&p){}
+    placeholer(const placeholer&) = default;
+    placeholer(placeholer&&) = default;
+    placeholer& operator=(const placeholer&) = default;
+    placeholer& operator=(placeholer&&) = default;
+    ~placeholer() = default;
+  };
+
+  template <typename F, typename Tuple, std::size_t... Is>
+  auto placeholder_apply_impl(F&& f, Tuple&& placeholder_pack, std::index_sequence<Is...>)
+  {
+    return f(std::get<Is>(placeholder_pack).get()...);
+  }
+  template <typename F, typename Tuple>
+  auto placeholder_apply(F&& f, Tuple&& placeholder_pack)
+  {
+    return placeholder_apply_impl(std::forward<F>(f), std::forward<Tuple>(placeholder_pack), std::make_integer_sequence<std::size_t, std::tuple_size_v<std::decay_t<Tuple>>>{});
+  }
+
   template <typename, typename>
   class node_base;
   template <typename R, typename... Args, typename T>
@@ -14,6 +58,7 @@ namespace my
     using result_type = R;
   protected:
     result_type** ans_ptr{};
+    double weight = 1.0;
     ~node_base() = default;
   public:
     node_base() = default;
@@ -75,7 +120,15 @@ namespace my
     using base_type = node_base<R(Args...), T>;
     using derived_type = T;
     ~custom_node_base() = default;
+    std::tuple<placeholer<Args>...> placeholder_pack;
   public:
+    template <typename... Ts>
+    static derived_type generate(Ts&&... ts)
+    {
+      auto tmp = derived_type{};
+      tmp.placeholder_pack = decltype(placeholder_pack)(ts...);
+      return tmp;
+    }
     using custom_node_type = custom_node_base;
     using node_invoke_type = R(Args...);
   public:
@@ -85,6 +138,8 @@ namespace my
     custom_node_base& operator=(const custom_node_base&) = default;
     custom_node_base& operator=(custom_node_base&&) = default;
   public:
+    template <std::size_t I>
+    auto& arg() { return std::get<I>(placeholder_pack); }
     const char* match(const char* str)
     {
       if (base_type::ans_ptr) *base_type::ans_ptr = nullptr;
@@ -92,7 +147,7 @@ namespace my
       auto ans = d.N.match(str);
       if (ans)
       {
-        d.as();
+        placeholder_apply([&d](auto&&... args){ return d.as(args...); }, placeholder_pack);
         if (base_type::ans_ptr) *base_type::ans_ptr = static_cast<R*>(this);
       }
       return ans;
@@ -198,20 +253,21 @@ namespace my
     {
       int x;
     };
-    struct Clause0: custom_node_base<BLOCK1_data(), Clause0>
+    struct Clause0: custom_node_base<BLOCK1_data(int), Clause0>
     {
       single_node_data* p1{};
       DEFINE_EXPRESSION("aaa"_s[p1], Clause0);
-      void as()
+      void as(int y)
       {
         if (p1) {
-          x = -42;
+          x = y;
         }
         else x = -1;
       }
     };
   };
-  auto BLOCK1() { return BLOCK1_DEF::Clause0{}; }
+  template <typename T>
+  auto BLOCK1(T&& t) { return BLOCK1_DEF::Clause0::generate(std::forward<T>(t)); }
   struct BLOCK2_DEF
   {
     struct BLOCK2_data
@@ -222,12 +278,12 @@ namespace my
     {
       BLOCK1_DEF::BLOCK1_data* p1{};
       single_node_data* p2{};
-      DEFINE_EXPRESSION(BLOCK1()[p1] | "bbb"_s[p2], Clause0);
+      DEFINE_EXPRESSION(BLOCK1(42)[p1] | "bbb"_s[p2], Clause0);
       void as()
       {
         if (p1) {
 //          std::cout << p1->x << std::endl;
-          x = p1->x;
+          x = p1->x * 2;
         }
         else x = -1;
       }
@@ -242,10 +298,10 @@ namespace my
     };
     struct Clause0: custom_node_base<BLOCK3_data(), Clause0>
     {
-      BLOCK1_DEF::BLOCK1_data* p1{};
+      BLOCK2_DEF::BLOCK2_data* p1{};
       single_node_data* p2{};
       single_node_data* p3{};
-      DEFINE_EXPRESSION((BLOCK1()[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
+      DEFINE_EXPRESSION((BLOCK2()[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
       void as()
       {
         if (p1 && p2 && p3) {
@@ -287,7 +343,7 @@ int main()
   {
     std::cout << "===" << std::endl;
     my::BLOCK1_DEF::BLOCK1_data* p = nullptr;
-    auto n = my::BLOCK1()[p];
+    auto n = my::BLOCK1(-42)[p];
 //    std::cout << "ans: " << (p == nullptr) << std::endl;
     auto input = "aaa bbb";
     auto output = n.match(input);
