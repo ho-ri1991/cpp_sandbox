@@ -8,14 +8,14 @@ namespace my
   struct placeholer
   {
     std::variant<placeholer<T>*, T> data;
-    T get()
+    T get_value()
     {
       return std::visit([](auto&& var) {
           using U = std::decay_t<decltype(var)>;
           if constexpr (std::is_same_v<U, placeholer<T>*>)
           {
             assert(var);
-            return var->get();
+            return var->get_value();
           }
           else
              return var;
@@ -34,21 +34,127 @@ namespace my
     ~placeholer() = default;
   };
 
-  template <typename F, typename Tuple, std::size_t... Is>
-  auto placeholder_apply_impl(F&& f, Tuple&& placeholder_pack, std::index_sequence<Is...>)
+  namespace detail
   {
-    return f(std::get<Is>(placeholder_pack).get()...);
+    template <typename...Ts> struct type_list {};
+    template <std::size_t I> struct index {};
+    template <typename T, std::size_t I> struct placeholders_impl;
+    template <typename T>
+    struct placeholders_impl<T, 1>
+    {
+      placeholer<T> _1;
+      placeholer<T>& get(index<1>) { return _1; }
+      const placeholer<T>& get(index<1>) const { return _1; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 2>
+    {
+      placeholer<T> _2;
+      placeholer<T>& get(index<2>) { return _2; }
+      const placeholer<T>& get(index<2>) const { return _2; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 3>
+    {
+      placeholer<T> _3;
+      placeholer<T>& get(index<3>) { return _3; }
+      const placeholer<T>& get(index<3>) const { return _3; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 4>
+    {
+      placeholer<T> _4;
+      placeholer<T>& get(index<4>) { return _4; }
+      const placeholer<T>& get(index<4>) const { return _4; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 5>
+    {
+      placeholer<T> _5;
+      placeholer<T>& get(index<5>) { return _5; }
+      const placeholer<T>& get(index<5>) const { return _5; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 6>
+    {
+      placeholer<T> _6;
+      placeholer<T>& get(index<6>) { return _6; }
+      const placeholer<T>& get(index<6>) const { return _6; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 7>
+    {
+      placeholer<T> _7;
+      placeholer<T>& get(index<7>) { return _7; }
+      const placeholer<T>& get(index<7>) const { return _7; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 8>
+    {
+      placeholer<T> _8;
+      placeholer<T>& get(index<8>) { return _8; }
+      const placeholer<T>& get(index<8>) const { return _8; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 9>
+    {
+      placeholer<T> _9;
+      placeholer<T>& get(index<9>) { return _9; }
+      const placeholer<T>& get(index<9>) const { return _9; }
+    };
+    template <typename T>
+    struct placeholders_impl<T, 10>
+    {
+      placeholer<T> _10;
+      placeholer<T>& get(index<10>) { return _10; }
+      const placeholer<T>& get(index<10>) const { return _10; }
+    };
+    template <typename TypeList, typename IndexList>
+    struct placeholder_pack_impl;
+    template <typename T, typename...Ts, std::size_t I, std::size_t...Is>
+    struct placeholder_pack_impl<type_list<T, Ts...>, std::index_sequence<I, Is...>>
+      : placeholders_impl<T, I + 1>, placeholder_pack_impl<type_list<Ts...>, std::index_sequence<Is...>> {};
+    template <>
+    struct placeholder_pack_impl<type_list<>, std::index_sequence<>> {};
   }
-  template <typename F, typename Tuple>
-  auto placeholder_apply(F&& f, Tuple&& placeholder_pack)
+
+  template <typename... Ts>
+  struct placeholder_pack: detail::placeholder_pack_impl<detail::type_list<Ts...>, std::make_index_sequence<sizeof...(Ts)>> {};
+
+  template <typename... Ts, typename A, typename... Args>
+  void set_value_to_placeholder_pack_impl(placeholder_pack<Ts...>& pack, A&& a, Args&&... args)
   {
-    return placeholder_apply_impl(std::forward<F>(f), std::forward<Tuple>(placeholder_pack), std::make_integer_sequence<std::size_t, std::tuple_size_v<std::decay_t<Tuple>>>{});
+    pack.get(detail::index<sizeof...(Ts) - sizeof...(Args) + 1>{}) = std::forward<A>(a);
+    set_value_to_placeholder_pack_impl(pack, std::forward<Args>(args)...);
+  }
+  template <typename... Ts, typename A>
+  void set_value_to_placeholder_pack_impl(placeholder_pack<Ts...>& pack, A&& a)
+  {
+    pack.get(detail::index<sizeof...(Ts)>{}) = std::forward<A>(a);
+  }
+  void set_value_to_placeholder_pack_impl(placeholder_pack<>& pack) {}
+  template <typename... Ts, typename... Args>
+  void set_value_to_placeholder_pack(placeholder_pack<Ts...>& pack, Args&&... args)
+  {
+    set_value_to_placeholder_pack_impl(pack, std::forward<Args>(args)...);
+  }
+  
+  template <typename F, typename... Ts, std::size_t... Is>
+  auto placeholder_apply_impl(F&& f, placeholder_pack<Ts...>& placeholders, std::index_sequence<Is...>)
+  {
+    return f(placeholders.get(detail::index<Is + 1>{}).get_value()...);
+  }
+
+  template <typename F, typename... Ts>
+  auto placeholder_apply(F&& f, placeholder_pack<Ts...>& placeholders)
+  {
+    return placeholder_apply_impl(std::forward<F>(f), placeholders, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
   template <typename, typename>
   class node_base;
   template <typename R, typename... Args, typename T>
-  class node_base<R(Args...), T>
+  class node_base<R(Args...), T>: public placeholder_pack<Args...>
   {
     friend T;
   private:
@@ -58,7 +164,6 @@ namespace my
     using result_type = R;
   protected:
     result_type** ans_ptr{};
-    double weight = 1.0;
     ~node_base() = default;
   public:
     node_base() = default;
@@ -120,13 +225,12 @@ namespace my
     using base_type = node_base<R(Args...), T>;
     using derived_type = T;
     ~custom_node_base() = default;
-    std::tuple<placeholer<Args>...> placeholder_pack;
   public:
     template <typename... Ts>
     static derived_type generate(Ts&&... ts)
     {
       auto tmp = derived_type{};
-      tmp.placeholder_pack = decltype(placeholder_pack)(ts...);
+      set_value_to_placeholder_pack(static_cast<placeholder_pack<Args...>&>(tmp), std::forward<Ts>(ts)...);
       return tmp;
     }
     using custom_node_type = custom_node_base;
@@ -138,8 +242,6 @@ namespace my
     custom_node_base& operator=(const custom_node_base&) = default;
     custom_node_base& operator=(custom_node_base&&) = default;
   public:
-    template <std::size_t I>
-    auto& arg() { return std::get<I>(placeholder_pack); }
     const char* match(const char* str)
     {
       if (base_type::ans_ptr) *base_type::ans_ptr = nullptr;
@@ -147,7 +249,7 @@ namespace my
       auto ans = d.N.match(str);
       if (ans)
       {
-        placeholder_apply([&d](auto&&... args){ return d.as(args...); }, placeholder_pack);
+        placeholder_apply([&d](auto&&... args){ return d.as(args...); }, static_cast<placeholder_pack<Args...>&>(*this));
         if (base_type::ans_ptr) *base_type::ans_ptr = static_cast<R*>(this);
       }
       return ans;
