@@ -376,22 +376,23 @@ namespace my
     {
       int x;
     };
-    struct Clause0: custom_node_base<BLOCK2_data(), Clause0>
+    struct Clause0: custom_node_base<BLOCK2_data(int), Clause0>
     {
       BLOCK1_DEF::BLOCK1_data* p1{};
       single_node_data* p2{};
-      DEFINE_EXPRESSION(BLOCK1(42)[p1] | "bbb"_s[p2], Clause0);
-      void as()
+      DEFINE_EXPRESSION(BLOCK1(_1)[p1] | "bbb"_s[p2], Clause0);
+      void as(int y)
       {
         if (p1) {
 //          std::cout << p1->x << std::endl;
-          x = p1->x * 2;
+          x = p1->x * 2 * y;
         }
         else x = -1;
       }
     };
   };
-  auto BLOCK2() { return BLOCK2_DEF::Clause0{}; }
+  template <typename T>
+  auto BLOCK2(T&& t) { return BLOCK2_DEF::Clause0::generate(std::forward<T>(t)); }
   struct BLOCK3_DEF
   {
     struct BLOCK3_data
@@ -403,7 +404,7 @@ namespace my
       BLOCK2_DEF::BLOCK2_data* p1{};
       single_node_data* p2{};
       single_node_data* p3{};
-      DEFINE_EXPRESSION((BLOCK2()[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
+      DEFINE_EXPRESSION((BLOCK2(-5)[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
       void as()
       {
         if (p1 && p2 && p3) {
@@ -414,7 +415,7 @@ namespace my
       }
     };
   };
-  auto BLOCK3() { return BLOCK3_DEF::Clause0{}; }
+  auto BLOCK3() { return BLOCK3_DEF::Clause0::generate(); }
 }
 int main()
 {
@@ -456,7 +457,7 @@ int main()
   {
     std::cout << "===" << std::endl;
     my::BLOCK2_DEF::BLOCK2_data* p = nullptr;
-    auto n = my::BLOCK2()[p];
+    auto n = my::BLOCK2(42)[p];
     {
       auto input = "aaa bbb";
       auto output = n.match(input);
@@ -503,3 +504,4 @@ int main()
   }
   return 0;
 }
+
