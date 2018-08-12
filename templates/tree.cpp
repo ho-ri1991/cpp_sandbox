@@ -5,14 +5,14 @@
 namespace my
 {
   template <typename T>
-  struct placeholer
+  struct placeholder
   {
-    std::variant<placeholer<T>*, T> data;
+    std::variant<placeholder<T>*, T> data;
     T get_value()
     {
       return std::visit([](auto&& var) {
           using U = std::decay_t<decltype(var)>;
-          if constexpr (std::is_same_v<U, placeholer<T>*>)
+          if constexpr (std::is_same_v<U, placeholder<T>*>)
           {
             assert(var);
             return var->get_value();
@@ -23,15 +23,15 @@ namespace my
       );
     }
     void set(T d) { data = d; }
-    void set(placeholer<T>& p) { data = &p; }
-    placeholer() = default;
-    placeholer(T t): data(std::move(t)) {}
-    placeholer(placeholer<T>& p): data(&p){}
-    placeholer(const placeholer&) = default;
-    placeholer(placeholer&&) = default;
-    placeholer& operator=(const placeholer&) = default;
-    placeholer& operator=(placeholer&&) = default;
-    ~placeholer() = default;
+    void set(placeholder<T>& p) { data = &p; }
+    placeholder() = default;
+    placeholder(T t): data(std::move(t)) {}
+    placeholder(placeholder<T>& p): data(&p){}
+    placeholder(const placeholder&) = default;
+    placeholder(placeholder&&) = default;
+    placeholder& operator=(const placeholder&) = default;
+    placeholder& operator=(placeholder&&) = default;
+    ~placeholder() = default;
   };
 
   namespace detail
@@ -42,72 +42,72 @@ namespace my
     template <typename T>
     struct placeholders_impl<T, 1>
     {
-      placeholer<T> _1;
-      placeholer<T>& get(index<1>) { return _1; }
-      const placeholer<T>& get(index<1>) const { return _1; }
+      placeholder<T> _1;
+      placeholder<T>& get(index<1>) { return _1; }
+      const placeholder<T>& get(index<1>) const { return _1; }
     };
     template <typename T>
     struct placeholders_impl<T, 2>
     {
-      placeholer<T> _2;
-      placeholer<T>& get(index<2>) { return _2; }
-      const placeholer<T>& get(index<2>) const { return _2; }
+      placeholder<T> _2;
+      placeholder<T>& get(index<2>) { return _2; }
+      const placeholder<T>& get(index<2>) const { return _2; }
     };
     template <typename T>
     struct placeholders_impl<T, 3>
     {
-      placeholer<T> _3;
-      placeholer<T>& get(index<3>) { return _3; }
-      const placeholer<T>& get(index<3>) const { return _3; }
+      placeholder<T> _3;
+      placeholder<T>& get(index<3>) { return _3; }
+      const placeholder<T>& get(index<3>) const { return _3; }
     };
     template <typename T>
     struct placeholders_impl<T, 4>
     {
-      placeholer<T> _4;
-      placeholer<T>& get(index<4>) { return _4; }
-      const placeholer<T>& get(index<4>) const { return _4; }
+      placeholder<T> _4;
+      placeholder<T>& get(index<4>) { return _4; }
+      const placeholder<T>& get(index<4>) const { return _4; }
     };
     template <typename T>
     struct placeholders_impl<T, 5>
     {
-      placeholer<T> _5;
-      placeholer<T>& get(index<5>) { return _5; }
-      const placeholer<T>& get(index<5>) const { return _5; }
+      placeholder<T> _5;
+      placeholder<T>& get(index<5>) { return _5; }
+      const placeholder<T>& get(index<5>) const { return _5; }
     };
     template <typename T>
     struct placeholders_impl<T, 6>
     {
-      placeholer<T> _6;
-      placeholer<T>& get(index<6>) { return _6; }
-      const placeholer<T>& get(index<6>) const { return _6; }
+      placeholder<T> _6;
+      placeholder<T>& get(index<6>) { return _6; }
+      const placeholder<T>& get(index<6>) const { return _6; }
     };
     template <typename T>
     struct placeholders_impl<T, 7>
     {
-      placeholer<T> _7;
-      placeholer<T>& get(index<7>) { return _7; }
-      const placeholer<T>& get(index<7>) const { return _7; }
+      placeholder<T> _7;
+      placeholder<T>& get(index<7>) { return _7; }
+      const placeholder<T>& get(index<7>) const { return _7; }
     };
     template <typename T>
     struct placeholders_impl<T, 8>
     {
-      placeholer<T> _8;
-      placeholer<T>& get(index<8>) { return _8; }
-      const placeholer<T>& get(index<8>) const { return _8; }
+      placeholder<T> _8;
+      placeholder<T>& get(index<8>) { return _8; }
+      const placeholder<T>& get(index<8>) const { return _8; }
     };
     template <typename T>
     struct placeholders_impl<T, 9>
     {
-      placeholer<T> _9;
-      placeholer<T>& get(index<9>) { return _9; }
-      const placeholer<T>& get(index<9>) const { return _9; }
+      placeholder<T> _9;
+      placeholder<T>& get(index<9>) { return _9; }
+      const placeholder<T>& get(index<9>) const { return _9; }
     };
     template <typename T>
     struct placeholders_impl<T, 10>
     {
-      placeholer<T> _10;
-      placeholer<T>& get(index<10>) { return _10; }
-      const placeholer<T>& get(index<10>) const { return _10; }
+      placeholder<T> _10;
+      placeholder<T>& get(index<10>) { return _10; }
+      const placeholder<T>& get(index<10>) const { return _10; }
     };
     template <typename TypeList, typename IndexList>
     struct placeholder_pack_impl;
@@ -164,6 +164,7 @@ namespace my
     using result_type = R;
   protected:
     result_type** ans_ptr{};
+    double weight = 1.0;
     ~node_base() = default;
   public:
     node_base() = default;
@@ -178,6 +179,7 @@ namespace my
       tmp.ans_ptr = &ptr;
       return tmp;
     }
+    void set_weight(double w) { weight = w; }
   };
   struct single_node_data {};
   class single_node: public node_base<single_node_data(), single_node>
@@ -335,6 +337,14 @@ namespace my
   {
     return chain_node<N1, N2>(n1, n2);
   }
+  // TODO write constraints for SFINAE
+  template <typename N>
+  auto operator*(double weight, N&& n)
+  {
+    auto tmp = std::forward<N>(n);
+    tmp.set_weight(weight);
+    return tmp;
+  }
 }
 my::single_node operator"" _s(const char* str, std::size_t len) noexcept { return my::single_node(str); }
 #define DEFINE_EXPRESSION(EXPR, CLAUSE_CLASS) \
@@ -404,7 +414,7 @@ namespace my
       BLOCK2_DEF::BLOCK2_data* p1{};
       single_node_data* p2{};
       single_node_data* p3{};
-      DEFINE_EXPRESSION((BLOCK2(-5)[p1] + "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
+      DEFINE_EXPRESSION((BLOCK2(-5)[p1] + 0.5 * "bbb"_s[p2] + "dd"_s)[p3] | "ccc"_s, Clause0);
       void as()
       {
         if (p1 && p2 && p3) {
