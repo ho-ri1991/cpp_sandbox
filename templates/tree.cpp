@@ -8,9 +8,9 @@ namespace my
   struct placeholder
   {
     std::variant<placeholder<T>*, T> data;
-    T get_value()
+    T& get_value()
     {
-      return std::visit([](auto&& var) {
+      return std::visit([](auto&& var)->T& {
           using U = std::decay_t<decltype(var)>;
           if constexpr (std::is_same_v<U, placeholder<T>*>)
           {
@@ -124,7 +124,7 @@ namespace my
   template <typename... Ts, typename A, typename... Args>
   void set_value_to_placeholder_pack_impl(placeholder_pack<Ts...>& pack, A&& a, Args&&... args)
   {
-    pack.get(detail::index<sizeof...(Ts) - sizeof...(Args) + 1>{}) = std::forward<A>(a);
+    pack.get(detail::index<sizeof...(Ts) - sizeof...(Args)>{}) = std::forward<A>(a);
     set_value_to_placeholder_pack_impl(pack, std::forward<Args>(args)...);
   }
   template <typename... Ts, typename A>
