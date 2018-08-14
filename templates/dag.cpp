@@ -82,27 +82,26 @@ namespace my
   }
 
   struct terminal_node {};
-  static constexpr auto teminal = terminal_node{};
-  template <typename T>
-  struct init_next
-  {
-    static constexpr T* value = nullptr;
-  };
-  template <>
-  struct init_next<terminal_node>
-  {
-    static constexpr terminal_node terminal{};
-    static constexpr const terminal_node* value = &terminal;
-  };
+  static constexpr auto terminal = terminal_node{};
 
   template <typename Next = terminal_node>
   struct inner_node
   {
     template <typename T>
     using this_template = inner_node<T>;
+    template <typename NextNodeType>
+    this_template<NextNodeType> copy() const { return this_template<NextNodeType>{}; }
+    Next* next = nullptr;
+  };
+
+  template <>
+  struct inner_node<terminal_node>
+  {
+    template <typename T>
+    using this_template = inner_node<T>;
     template <typename T>
     this_template<T> copy() const { return this_template<T>{}; }
-//    Next* next = init_next<Next>();
+    const terminal_node* next = &terminal;
   };
 
   template <typename N1, typename N2, typename... Ns>
@@ -111,6 +110,8 @@ namespace my
     using head_type = N1;
     using last_type = typename std::conditional_t<sizeof...(Ns) == 0, identity<N2>, type_list_meta::last<type_list<Ns...>>>::type;
     static constexpr auto chain_size = sizeof...(Ns) + 2;
+    template <typename NextNodeType>
+    auto copy() const;
     std::tuple<N1, N2, Ns...> ns;
   };
 
@@ -119,7 +120,8 @@ namespace my
   {
     using content_types = type_list<N1, N2, Ns...>;
     std::tuple<N1, N2, Ns...> ns;
-    auto get_head_pointers();
+    template <typename NextNodeType>
+    auto copy() const;
   };
 
   template <typename Node>
@@ -152,6 +154,38 @@ namespace my
     }
   };
 
+  template <typename Node>
+  struct node_lasts
+  {
+    using type = type_list<Node>;
+    static auto get_last_pointers(Node& node) { return std::make_tuple(&node); }
+  };
+  template <typename... Ns>
+  struct node_lasts<chained_node<Ns...>>
+  {
+    using node_type = chained_node<Ns...>;
+    using this_last = typename node_type::last_type;
+    using type = typename node_lasts<this_last>::type;
+    static auto get_last_pointers(node_type& node)
+    {
+      return node_lasts<this_last>::get_last_pointers(std::get<sizeof...(Ns) - 1>(node.ns));
+    }
+  };
+  template <typename... Ns>
+  struct node_lasts<or_node<Ns...>>
+  {
+    using node_type = or_node<Ns...>;
+    using type = type_list_meta::merge_t<typename node_lasts<Ns>::type...>;
+    template <std::size_t... Is>
+    static auto get_last_pointers_impl(node_type& node, std::index_sequence<Is...>)
+    {
+      return std::tuple_cat(node_lasts<Ns>::get_last_pointers(std::get<Is>(node.ns))...);
+    }
+    static auto get_last_pointers(node_type& node)
+    {
+      return get_last_pointers_impl(node, std::make_index_sequence<sizeof...(Ns)>{});
+    }
+  };
 
   template <typename Tuple, std::size_t... Is>
   auto tail_impl(Tuple&& t, std::index_sequence<Is...>)
@@ -262,6 +296,41 @@ int main ()
         node_heads<example_node1>::get_head_pointers(example1)
       ),
       std::tuple<inner_node<inner_node<inner_node<>>>*, inner_node<inner_node<>>*, inner_node<>*>
+    >
+  );
+
+  static_assert(
+    std::is_same_v<
+      typename node_lasts<
+        chained_node<
+          inner_node<>,
+          or_node<
+            chained_node<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>, inner_node<>>,
+            chained_node<inner_node<inner_node<>>, inner_node<>>,
+            inner_node<>
+          >
+        >
+      >::type,
+      type_list<inner_node<>, inner_node<>, inner_node<>>
+    >
+  );
+  
+  using example_node2 =
+    chained_node<
+      inner_node<>,
+      or_node<
+        chained_node<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>, inner_node<>>,
+        chained_node<inner_node<inner_node<>>, inner_node<>>,
+        inner_node<>
+      >
+    >;
+  auto example2 = example_node2{};
+  static_assert(
+    std::is_same_v<
+      decltype(
+        node_lasts<example_node2>::get_last_pointers(example2)
+      ),
+      std::tuple<inner_node<>*, inner_node<>*, inner_node<>*>
     >
   );
   return 0;
