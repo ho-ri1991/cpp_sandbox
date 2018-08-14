@@ -92,6 +92,7 @@ namespace my
     template <typename NextNodeType>
     this_template<NextNodeType> copy() const { return this_template<NextNodeType>{}; }
     Next* next = nullptr;
+    void construct_connection() {}
   };
 
   template <>
@@ -102,6 +103,7 @@ namespace my
     template <typename T>
     this_template<T> copy() const { return this_template<T>{}; }
     const terminal_node* next = &terminal;
+    void construct_connection() {}
   };
 
   template <typename N1, typename N2, typename... Ns>
@@ -113,6 +115,9 @@ namespace my
     template <typename NextNodeType>
     auto copy() const;
     std::tuple<N1, N2, Ns...> ns;
+    template <std::size_t I>
+    void construct_connection_impl();
+    void construct_connection();
   };
 
   template <typename N1, typename N2, typename... Ns>
@@ -122,6 +127,9 @@ namespace my
     std::tuple<N1, N2, Ns...> ns;
     template <typename NextNodeType>
     auto copy() const;
+    template <std::size_t I>
+    void construct_connection_impl();
+    void construct_connection();
   };
 
   template <typename Node>
