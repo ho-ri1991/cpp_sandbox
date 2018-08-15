@@ -410,16 +410,11 @@ template <typename Node>
 void dfs(Node* node)
 {
   assert(node);
+  std::cout << node->phrase << std::endl;
   if constexpr (my::is_match_template_v<std::tuple, typename Node::next_hold_type>)
-  {
-    std::cout << node->phrase << std::endl;
-    dfs<0>(node->next);
-  }
-  else
-  {
-    std::cout << node->phrase << std::endl;
     dfs(node->next);
-  }
+  else
+    dfs(node->next);
 }
 
 
