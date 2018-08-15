@@ -1,5 +1,7 @@
 #include <type_traits>
 #include <tuple>
+#include <iostream>
+#include <boost/type_index.hpp>
 
 namespace my
 {
@@ -112,9 +114,44 @@ namespace my
     using head_type = N1;
     using last_type = typename std::conditional_t<sizeof...(Ns) == 0, identity<N2>, type_list_meta::last<type_list<Ns...>>>::type;
     static constexpr auto chain_size = sizeof...(Ns) + 2;
-    template <typename NextNodeType>
-    auto copy() const;
     std::tuple<N1, N2, Ns...> ns;
+    constexpr chained_node() = default;
+    constexpr chained_node(const std::tuple<N1, N2, Ns...>& ns): ns(ns) {}
+    constexpr chained_node(std::tuple<N1, N2, Ns...>&& ns): ns(std::move(ns)) {}
+    chained_node(const chained_node&) = default;
+    chained_node(chained_node&&) = default;
+    ~chained_node() = default;
+    template <typename NextNodeType, typename Node1, typename Node2, typename... Nodes>
+    static auto merge(Node1&& node1, Node2&& node2, Nodes&&... nodes)
+    {
+      if constexpr (sizeof...(Nodes) == 0)
+        return merge<NextNodeType>(std::forward<Node1>(node1), std::forward<Node2>(node2));
+      else
+        return merge<NextNodeType>(std::forward<Node1>(node1), merge<NextNodeType>(std::forward<Node2>(node2), std::forward<Nodes>(nodes)...));
+    }
+    template <typename NextNodeType, typename Node1, typename Node2>
+    static auto merge(Node1&& node1, Node2&& node2)
+    {
+      using Node2Type = std::decay_t<Node2>;
+      if constexpr (is_match_template_v<std::tuple, Node2Type>)
+      {
+        using Node1NextNodeType = std::tuple_element_t<0, Node2Type>;
+        return std::tuple_cat(std::make_tuple(node1.template copy<Node1NextNodeType>()), std::forward<Node2>(node2));
+      }
+      else
+      {
+        using Node1NextNodeType = decltype(node2.template copy<NextNodeType>());
+        return std::make_tuple(node1.template copy<Node1NextNodeType>(), node2.template copy<NextNodeType>());
+      }
+    }
+    template <typename... Nodes>
+    static auto make(const std::tuple<Nodes...>& nodes) { return chained_node<Nodes...>(nodes); }
+    template <typename... Nodes>
+    static auto make(std::tuple<Nodes...>&& nodes) { return chained_node<Nodes...>(std::move(nodes)); }
+    template <typename NextNodeType, std::size_t... Is>
+    auto copy_impl(std::index_sequence<Is...>) const { return merge<NextNodeType>(std::get<Is>(ns)...); }
+    template <typename NextNodeType>
+    auto copy() const { return make(copy_impl<NextNodeType>(std::make_index_sequence<sizeof...(Ns) + 2>{})); }
     template <std::size_t I>
     void construct_connection_impl();
     void construct_connection();
@@ -125,8 +162,20 @@ namespace my
   {
     using content_types = type_list<N1, N2, Ns...>;
     std::tuple<N1, N2, Ns...> ns;
+    constexpr or_node() = default;
+    constexpr or_node(const std::tuple<N1, N2, Ns...>& ns): ns(ns) {}
+    constexpr or_node(std::tuple<N1, N2, Ns...>&& ns): ns(std::move(ns)) {}
+    or_node(const or_node&) = default;
+    or_node(or_node&&) = default;
+    ~or_node() = default;
+    template <typename... Nodes>
+    static auto make(const std::tuple<Nodes...>& nodes) { return or_node<Nodes...>(nodes); }
+    template <typename... Nodes>
+    static auto make(std::tuple<Nodes...>&& nodes) { return or_node<Nodes...>(std::move(nodes)); }
+    template <typename NextNodeType, std::size_t... Is>
+    auto copy_impl(std::index_sequence<Is...>) const { return std::make_tuple(std::get<Is>(ns).template copy<NextNodeType>()...); }
     template <typename NextNodeType>
-    auto copy() const;
+    auto copy() const { return make(copy_impl<NextNodeType>(std::make_index_sequence<sizeof...(Ns) + 2>{})); }
     template <std::size_t I>
     void construct_connection_impl();
     void construct_connection();
@@ -273,37 +322,41 @@ int main ()
   static_assert(std::is_same_v<reverse_t<type_list<int, bool, double>>, type_list<double, bool, int>>);
   static_assert(std::is_same_v<last_t<type_list<int, bool, double>>, double>);
   static_assert(std::is_same_v<merge_t<type_list<int, bool>, type_list<double, float>, type_list<>>, type_list<int, bool, double, float>>);
-  static_assert(
-    std::is_same_v<
-      typename node_heads<
-        chained_node<
-          or_node<
-            chained_node<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>, inner_node<>>,
-            chained_node<inner_node<inner_node<>>, inner_node<>>,
-            inner_node<>
-          >,
-          inner_node<>
-        >
-      >::type,
-      type_list<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>, inner_node<>>
-    >
-  );
   using example_node1 =
     chained_node<
       or_node<
-        chained_node<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>, inner_node<>>,
-        chained_node<inner_node<inner_node<>>, inner_node<>>,
-        inner_node<>
+        chained_node<inner_node<inner_node<inner_node<inner_node<>>>>, inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>>,
+        chained_node<inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>>,
+        inner_node<inner_node<>>
       >,
       inner_node<>
     >;
+  static_assert(
+    std::is_same_v<
+      typename node_heads<example_node1>::type,
+      type_list<inner_node<inner_node<inner_node<inner_node<>>>>, inner_node<inner_node<inner_node<>>>, inner_node<inner_node<>>>
+    >
+  );
   auto example1 = example_node1{};
   static_assert(
     std::is_same_v<
       decltype(
         node_heads<example_node1>::get_head_pointers(example1)
       ),
-      std::tuple<inner_node<inner_node<inner_node<>>>*, inner_node<inner_node<>>*, inner_node<>*>
+      std::tuple<inner_node<inner_node<inner_node<inner_node<>>>>*, inner_node<inner_node<inner_node<>>>*, inner_node<inner_node<>>*>
+    >
+  );
+  static_assert(
+    std::is_same_v<
+      decltype(example1.copy<inner_node<>>()),
+      chained_node<
+        or_node<
+          chained_node<inner_node<inner_node<inner_node<inner_node<inner_node<>>>>>, inner_node<inner_node<inner_node<inner_node<>>>>, inner_node<inner_node<inner_node<>>>>,
+          chained_node<inner_node<inner_node<inner_node<inner_node<>>>>, inner_node<inner_node<inner_node<>>>>,
+          inner_node<inner_node<inner_node<>>>
+        >,
+        inner_node<inner_node<>>
+      >
     >
   );
 
