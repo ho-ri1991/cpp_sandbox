@@ -105,24 +105,24 @@ namespace my
   struct node_heads
   {
     using type = type_list<Node>;
-    static auto get_head_pointers(Node& node) { return std::make_tuple(&node); }
+    static constexpr auto get_head_pointers(Node& node) { return std::make_tuple(&node); }
   };
   template <typename N1, typename... Ns>
   struct node_heads<chained_node<N1, Ns...>>
   {
     using type = typename node_heads<N1>::type;
-    static auto get_head_pointers(chained_node<N1, Ns...>& node) { return node_heads<N1>::get_head_pointers(std::get<0>(node.ns)); }
+    static constexpr auto get_head_pointers(chained_node<N1, Ns...>& node) { return node_heads<N1>::get_head_pointers(std::get<0>(node.ns)); }
   };
   template <typename N1, typename... Ns>
   struct node_heads<or_node<N1, Ns...>>
   {
     using type = type_list_meta::merge_t<typename node_heads<N1>::type, typename node_heads<Ns>::type...>;
     template <std::size_t... Is>
-    static auto get_head_pointers_impl(or_node<N1, Ns...>& node, std::index_sequence<Is...>)
+    static constexpr auto get_head_pointers_impl(or_node<N1, Ns...>& node, std::index_sequence<Is...>)
     {
       return std::tuple_cat(node_heads<Ns>::get_head_pointers(std::get<Is + 1>(node.ns))...);
     }
-    static auto get_head_pointers(or_node<N1, Ns...>& node)
+    static constexpr auto get_head_pointers(or_node<N1, Ns...>& node)
     {
       return std::tuple_cat(
         node_heads<N1>::get_head_pointers(std::get<0>(node.ns)),
@@ -137,7 +137,7 @@ namespace my
   struct node_lasts
   {
     using type = type_list<Node>;
-    static auto get_last_pointers(Node& node) { return std::make_tuple(&node); }
+    static constexpr auto get_last_pointers(Node& node) { return std::make_tuple(&node); }
   };
   template <typename... Ns>
   struct node_lasts<chained_node<Ns...>>
@@ -145,7 +145,7 @@ namespace my
     using node_type = chained_node<Ns...>;
     using this_last = typename node_type::last_type;
     using type = typename node_lasts<this_last>::type;
-    static auto get_last_pointers(node_type& node)
+    static constexpr auto get_last_pointers(node_type& node)
     {
       return node_lasts<this_last>::get_last_pointers(std::get<sizeof...(Ns) - 1>(node.ns));
     }
@@ -156,11 +156,11 @@ namespace my
     using node_type = or_node<Ns...>;
     using type = type_list_meta::merge_t<typename node_lasts<Ns>::type...>;
     template <std::size_t... Is>
-    static auto get_last_pointers_impl(node_type& node, std::index_sequence<Is...>)
+    static constexpr auto get_last_pointers_impl(node_type& node, std::index_sequence<Is...>)
     {
       return std::tuple_cat(node_lasts<Ns>::get_last_pointers(std::get<Is>(node.ns))...);
     }
-    static auto get_last_pointers(node_type& node)
+    static constexpr auto get_last_pointers(node_type& node)
     {
       return get_last_pointers_impl(node, std::make_index_sequence<sizeof...(Ns)>{});
     }
@@ -168,7 +168,7 @@ namespace my
   template <typename Node>
   using node_lasts_t = typename node_lasts<Node>::type;
 
-  struct terminal_node {};
+  struct terminal_node { static constexpr bool is_visited = true; };
   static constexpr auto terminal = terminal_node{};
 
   template <typename NextNodeType>
@@ -193,14 +193,19 @@ namespace my
   template <typename Next = terminal_node>
   struct inner_node: next_node<Next>
   {
+    bool is_visited = false;
     template <typename T>
     using this_template = inner_node<T>;
     template <typename NextNodeType>
-    constexpr this_template<NextNodeType> copy() const { return this_template<NextNodeType>{phrase}; }
-    void construct_connection() {}
+    constexpr this_template<NextNodeType> copy() const { return this_template<NextNodeType>{phrase, value}; }
+    constexpr void construct_connection() {}
     const char* phrase = "<null>";
+    int value = 0;
     inner_node() = default;
     constexpr inner_node(const char* phrase): next_node<Next>(), phrase(phrase) {}
+    constexpr inner_node(int val): next_node<Next>(), value(val) {}
+    constexpr inner_node(const char* phrase, int val): next_node<Next>(), phrase(phrase), value(val) {}
+    static constexpr std::size_t node_num = 1;
     inner_node(const inner_node&) = default;
     inner_node(inner_node&&) = default;
     ~inner_node() = default;
@@ -219,6 +224,7 @@ namespace my
     constexpr chained_node(const chained_node&) = default;
     constexpr chained_node(chained_node&&) = default;
     ~chained_node() = default;
+    static constexpr std::size_t node_num = N1::node_num + N2::node_num + (Ns::node_num + ... + 0);
     template <typename NextNodeType, typename Node1, typename Node2, typename... Nodes>
     static constexpr auto merge(Node1&& node1, Node2&& node2, Nodes&&... nodes)
     {
@@ -253,19 +259,27 @@ namespace my
     template <typename NextNodeType>
     constexpr auto copy() const { return make(copy_impl<NextNodeType>(std::make_index_sequence<sizeof...(Ns) + 2>{})); }
     template <std::size_t I, typename Tuple1, typename Tuple2>
-    static void set_next_node_helper(Tuple1&& t1, Tuple2&& t2)
+    static constexpr void set_tuple_helper(Tuple1&& t1, Tuple2&& t2)
+    {
+      std::get<I>(t1) = std::get<I>(t2);
+      if constexpr (I < std::tuple_size_v<std::decay_t<Tuple1>> - 1)
+        set_tuple_helper<I + 1>(t1, t2);
+    }
+    template <std::size_t I, typename Tuple1, typename Tuple2>
+    static constexpr void set_next_node_helper(Tuple1&& t1, Tuple2&& t2)
     {
       if constexpr (I < std::tuple_size_v<Tuple1>)
       {
         if constexpr (std::tuple_size_v<std::decay_t<Tuple2>> == 1)
           std::get<I>(t1)->next = std::get<0>(t2);
         else
-          std::get<I>(t1)->next = t2;
+          set_tuple_helper<0>(std::get<I>(t1)->next, t2);
+//          std::get<I>(t1)->next = t2;
         set_next_node_helper<I + 1>(std::forward<Tuple1>(t1), std::forward<Tuple2>(t2));
       }
     }
     template <std::size_t I>
-    void construct_connection_impl()
+    constexpr void construct_connection_impl()
     {
       std::get<I>(ns).construct_connection();
       if constexpr (I < sizeof...(Ns) + 1)
@@ -274,7 +288,7 @@ namespace my
         construct_connection_impl<I + 1>();
       }
     }
-    void construct_connection() { construct_connection_impl<0>(); }
+    constexpr void construct_connection() { construct_connection_impl<0>(); }
   };
 
   template <typename N1, typename N2, typename... Ns>
@@ -288,6 +302,7 @@ namespace my
     constexpr or_node(const or_node&) = default;
     constexpr or_node(or_node&&) = default;
     ~or_node() = default;
+    static constexpr std::size_t node_num = N1::node_num + N2::node_num + (Ns::node_num + ... + 0);
     template <typename... Nodes>
     static constexpr auto make(const std::tuple<Nodes...>& nodes) { return or_node<Nodes...>(nodes); }
     template <typename... Nodes>
@@ -297,7 +312,7 @@ namespace my
     template <typename NextNodeType>
     constexpr auto copy() const { return make(copy_impl<NextNodeType>(std::make_index_sequence<sizeof...(Ns) + 2>{})); }
     template <std::size_t I>
-    void construct_connection_impl()
+    constexpr void construct_connection_impl()
     {
       if constexpr (I == sizeof...(Ns) + 2)
         return;
@@ -308,7 +323,7 @@ namespace my
         return;
       }
     }
-    void construct_connection() { construct_connection_impl<0>(); }
+    constexpr void construct_connection() { construct_connection_impl<0>(); }
   };
 
   template <typename Tuple, std::size_t... Is>
@@ -430,6 +445,97 @@ void dfs(std::tuple<Ts...> nodes)
   }
 }
 
+template <typename Node, std::size_t N>
+constexpr std::pair<bool, std::size_t> constexpr_dfs_impl(Node* node, const int (&ans)[N], std::size_t index);
+template <std::size_t I = 0, std::size_t N, typename... Ns>
+constexpr std::pair<bool, std::size_t> constexpr_dfs_impl(std::tuple<Ns...> nodes, const int (&ans)[N], std::size_t index);
+template <std::size_t N>
+constexpr std::pair<bool, std::size_t> constexpr_dfs_impl(const my::terminal_node*, const int (&ans)[N], std::size_t index) { return std::make_pair(true, index) ;}
+
+template <typename Node, std::size_t N>
+constexpr std::pair<bool, std::size_t> constexpr_dfs_impl(Node* node, const int (&ans)[N], std::size_t index)
+{
+  if (node->is_visited)
+    return std::make_pair(true, index);
+  node->is_visited = true;
+  if (node->value != ans[index])
+    return std::make_pair(false, 0);
+  else
+    return constexpr_dfs_impl(node->next, ans, index + 1);
+}
+template <std::size_t I = 0, std::size_t N, typename... Ns>
+constexpr std::pair<bool, std::size_t> constexpr_dfs_impl(std::tuple<Ns...> nodes, const int (&ans)[N], std::size_t index)
+{
+  if (std::get<I>(nodes)->value != ans[index])
+    return std::make_pair(false, 0);
+  auto res = constexpr_dfs_impl(std::get<I>(nodes)->next, ans, index + 1);
+  if (!res.first)
+    return std::make_pair(false, 0);
+  
+  if constexpr (I < sizeof...(Ns) - 1)
+  {
+    return constexpr_dfs_impl<I + 1>(nodes, ans, res.second);
+  }
+  else
+    return res;
+}
+
+template <typename Root>
+constexpr bool constexpr_dfs(Root root, const int (&ans)[Root::node_num])
+{
+  root.construct_connection();
+  return constexpr_dfs_impl(my::node_heads<Root>::get_head_pointers(root), ans, 0).first;
+}
+
+namespace test
+{
+  template <typename Node, std::size_t N>
+  std::pair<bool, std::size_t> constexpr_dfs_impl(Node* node, const int (&ans)[N], std::size_t index);
+  template <std::size_t I = 0, std::size_t N, typename... Ns>
+  std::pair<bool, std::size_t> constexpr_dfs_impl(std::tuple<Ns...> nodes, const int (&ans)[N], std::size_t index);
+  template <std::size_t N>
+  std::pair<bool, std::size_t> constexpr_dfs_impl(const my::terminal_node*, const int (&ans)[N], std::size_t index) { return std::make_pair(true, index) ;}
+
+  template <typename Node, std::size_t N>
+  std::pair<bool, std::size_t> constexpr_dfs_impl(Node* node, const int (&ans)[N], std::size_t index)
+  {
+    if (node->is_visited)
+      return std::make_pair(true, index);
+    node->is_visited = true;
+    std::cout << node->value << " " << ans[index] << std::endl;
+    if (node->value != ans[index])
+      return std::make_pair(false, 0);
+    else
+      return constexpr_dfs_impl(node->next, ans, index + 1);
+  }
+  template <std::size_t I = 0, std::size_t N, typename... Ns>
+  std::pair<bool, std::size_t> constexpr_dfs_impl(std::tuple<Ns...> nodes, const int (&ans)[N], std::size_t index)
+  {
+//    std::cout << index << " " << std::get<I>(nodes)->value << std::endl;
+    std::cout << std::get<I>(nodes)->value << " " << ans[index] << std::endl;
+    if (std::get<I>(nodes)->value != ans[index])
+      return std::make_pair(false, 0);
+    auto res = constexpr_dfs_impl(std::get<I>(nodes)->next, ans, index + 1);
+    if (!res.first)
+      return std::make_pair(false, 0);
+    
+    if constexpr (I < sizeof...(Ns) - 1)
+    {
+      return constexpr_dfs_impl<I + 1>(nodes, ans, res.second);
+    }
+    else
+      return res;
+  }
+
+  template <typename Root>
+  bool constexpr_dfs(Root root, const int (&ans)[Root::node_num])
+  {
+    root.construct_connection();
+    std::cout << "start" << std::endl;
+    return ::test::constexpr_dfs_impl(my::node_heads<Root>::get_head_pointers(root), ans, 0).first;
+  }
+}
+
 int main ()
 {
   using namespace my;
@@ -532,6 +638,15 @@ int main ()
   dfs(node_heads<decltype(or1)>::get_head_pointers(or1));
 
   constexpr auto or2 = c1 + (inner_node<>{"d"} | c3 | inner_node{"e"}) + c2;
+  static_assert(std::remove_const_t<decltype(or2)>::node_num == 12);
 
+  constexpr auto n1 = inner_node<>{1} + (inner_node<>{2} + inner_node<>{3});
+  constexpr auto n2 = (inner_node<>{6} + inner_node<>{5}) + inner_node<>{4};
+  constexpr auto n3 = (inner_node<>{7} + inner_node<>{8}) + (inner_node<>{9} | inner_node<>{10});
+  constexpr auto n4 = n1 + (inner_node<>{11} | n3 | inner_node{12}) + n2;
+  static constexpr int ans[std::remove_const_t<decltype(n4)>::node_num] = {1, 2, 3, 11, 6, 5, 4, 7, 8, 9, 10, 12};
+  static constexpr int ans1[std::remove_const_t<decltype(n4)>::node_num] = {1, 2, 3, 11, 6, 5, 4, 7, 8, 9, 10, 11};
+  static_assert(constexpr_dfs(n4, ans));
+  static_assert(!constexpr_dfs(n4, ans1));
   return 0;
 }
