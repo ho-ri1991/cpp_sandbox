@@ -1,0 +1,40 @@
+---
+Language:        Cpp
+BasedOnStyle:  Google
+AccessModifierOffset: -2
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+BraceWrapping:   
+  AfterClass:      true
+  AfterControlStatement: true
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterNamespace:  true
+  AfterObjCDeclaration: true
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterExternBlock: true
+  BeforeCatch:     true
+  BeforeElse:      true
+  IndentBraces:    false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+BreakBeforeBraces: Custom
+BreakConstructorInitializers: AfterColon
+ConstructorInitializerIndentWidth: 2
+DerivePointerAlignment: true
+IndentPPDirectives: AfterHash
+NamespaceIndentation: None
+PenaltyBreakBeforeFirstCallParameter: 500
+PenaltyBreakFirstLessLess: 0
+PenaltyExcessCharacter: 1
+SpaceBeforeParens: Never
+Standard:        Auto
+TabWidth:        8
+UseTab:          Never
+...
+
