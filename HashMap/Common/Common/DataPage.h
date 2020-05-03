@@ -38,9 +38,9 @@ private:
   pointer getPointer() noexcept;
   const_pointer getPointer() const noexcept;
   void destruct(size_t n) noexcept;
-  static void destroy(pointer p) noexcept;
 
 public:
+  static void destroy(pointer p) noexcept;
   DataPage() noexcept;
   DataPage(const DataPage& other) noexcept(std::is_nothrow_copy_constructible_v<value_type>);
   DataPage(DataPage&& other) noexcept(std::is_nothrow_move_constructible_v<value_type>);
@@ -68,6 +68,9 @@ public:
   reference back() noexcept;
   const_reference back() const noexcept;
 };
+
+template <typename T, std::size_t Length>
+void swap(DataPage<T, Length>& x, DataPage<T, Length>& y) noexcept(std::is_nothrow_swappable_v<typename DataPage<T, Length>::value_type>);
 }  // namespace Common
 }  // namespace My
 

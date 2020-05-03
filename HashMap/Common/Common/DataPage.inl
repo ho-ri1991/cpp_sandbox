@@ -38,15 +38,16 @@ DataPage<T, Length>::DataPage() noexcept : mSize(0)
 template <typename T, std::size_t Length>
 DataPage<T, Length>::DataPage(const DataPage& other) noexcept(
     std::is_nothrow_copy_constructible_v<value_type>) :
-  mSize(other.mSize)
+  mSize(0)
 {
   if constexpr(std::is_trivially_copyable_v<value_type>)
   {
     std::memcpy(this->mData, other.mData, sDataSizeInBytes);
+    mSize = other.mSize;
   }
   else
   {
-    for(std::size_t i = 0; i < mSize; ++i)
+    for(std::size_t i = 0; i < other.size(); ++i)
     {
       this->push_back(other[i]);
     }
@@ -54,15 +55,16 @@ DataPage<T, Length>::DataPage(const DataPage& other) noexcept(
 }
 template <typename T, std::size_t Length>
 DataPage<T, Length>::DataPage(DataPage&& other) noexcept(std::is_nothrow_move_constructible_v<value_type>) :
-  mSize(other.mSize)
+  mSize(0)
 {
   if constexpr(std::is_trivially_copyable_v<value_type>)
   {
     std::memcpy(this->mData, other.mData, sDataSizeInBytes);
+    mSize = other.mSize;
   }
   else
   {
-    for(std::size_t i = 0; i < mSize; ++i)
+    for(std::size_t i = 0; i < other.size(); ++i)
     {
       this->push_back(std::move(other[i]));
     }
@@ -112,12 +114,13 @@ void DataPage<T, Length>::swap(DataPage& other) noexcept(std::is_nothrow_swappab
       {
         swap(small[i], large[i]);
       }
-      for(std::size_t i = small.size(); i < large.size(); ++i)
+      auto limit = large.size();
+      for(std::size_t i = small.size(); i < limit; ++i)
       {
         small.push_back(std::move(large[i]));
         large.destruct(i);
+        --large.mSize;
       }
-      swap(small.mSize, large.mSize);
     }
   }
   else
@@ -280,5 +283,10 @@ typename DataPage<T, Length>::const_reference DataPage<T, Length>::back() const 
   return (*this)[size() - 1];
 }
 
+template <typename T, std::size_t Length>
+void swap(DataPage<T, Length>& x, DataPage<T, Length>& y) noexcept(std::is_nothrow_swappable_v<typename DataPage<T, Length>::value_type>)
+{
+  x.swap(y);
+}
 }  // namespace Common
 }  // namespace My

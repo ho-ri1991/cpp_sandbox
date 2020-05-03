@@ -53,6 +53,21 @@ BOOST_AUTO_TEST_CASE(TestIntegerDataPage)
   BOOST_CHECK(it != page.end());
   page.remove(it - page.begin());
   BOOST_CHECK(page.empty());
+
+  using std::swap;
+  My::Common::DataPage<int, 4> page1, page2;
+  page1.push_back(42);
+  swap(page1, page2);
+  BOOST_CHECK_EQUAL(page1.size(), 0);
+  BOOST_CHECK_EQUAL(page2.size(), 1);
+  BOOST_CHECK_EQUAL(page2[0], 42);
+
+  page2.push_back(43);
+  page2.push_back(44);
+  page2.push_back(45);
+  swap(page1, page2);
+  BOOST_CHECK_EQUAL(page1.size(), 4);
+  BOOST_CHECK_EQUAL(page2.size(), 0);
 }
 
 BOOST_AUTO_TEST_CASE(TestStringDataPage)
@@ -99,4 +114,19 @@ BOOST_AUTO_TEST_CASE(TestStringDataPage)
   BOOST_CHECK(it != page.end());
   page.remove(it - page.begin());
   BOOST_CHECK(page.empty());
+
+  using std::swap;
+  My::Common::DataPage<std::string, 4> page1, page2;
+  page1.push_back("a");
+  swap(page1, page2);
+  BOOST_CHECK_EQUAL(page1.size(), 0);
+  BOOST_CHECK_EQUAL(page2.size(), 1);
+  BOOST_CHECK_EQUAL(page2[0], "a");
+
+  page2.push_back("b");
+  page2.push_back("c");
+  page2.push_back("d");
+  swap(page1, page2);
+  BOOST_CHECK_EQUAL(page1.size(), 4);
+  BOOST_CHECK_EQUAL(page2.size(), 0);
 }
