@@ -32,7 +32,7 @@ private:
   std::size_t mLocalDepth;
 
 public:
-  DataPage(std::size_t localDepth) noexcept;
+  explicit DataPage(std::size_t localDepth) noexcept;
   void swap(DataPage& other) noexcept(std::is_nothrow_swappable_v<value_type>);
   std::size_t getLocalDepth() const noexcept;
   void setLocalDepth(std::size_t localDepth) noexcept;
